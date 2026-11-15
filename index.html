@@ -93,15 +93,26 @@ img.ph{width:100%;max-height:480px;object-fit:cover;border-radius:10px;margin-to
     <div class="sub" style="margin-top:6px">Up to 4 photos (tap a photo to remove it).</div>
     <input id="file" type="file" accept="image/*" multiple hidden>
     <div class="err" id="err"></div>
-    <div class="sub" style="margin-top:8px">📍 Your current location and Google name are saved with the post so people nearby can find it. Location is optional.</div>
+    <div class="sub" style="margin-top:8px">📍 Your current location and username are saved with the post so people nearby can find it. Location is optional.</div>
   </div>
 </div>
+
+<div class="ov" id="aov" style="z-index:40"><div class="sheet">
+  <div class="sh"><strong id="atitle" style="font-size:18px">Log in</strong><button id="aclose" type="button" aria-label="Close">✕</button></div>
+  <input id="au" placeholder="Username" autocomplete="username" maxlength="20" autocapitalize="none" spellcheck="false">
+  <input id="ap" type="password" placeholder="Password (6+ characters)" autocomplete="current-password" style="margin-top:8px">
+  <div class="row"><button id="ago" class="pri" type="button">Log in</button></div>
+  <div class="sub" style="margin:10px 0;text-align:center"><span class="link" id="aswap">New here? Create an account</span></div>
+  <div class="row" style="margin-top:0"><button id="ag" type="button">Continue with Google</button></div>
+  <div class="err" id="aerr"></div>
+  <div class="sub" style="margin-top:8px">No email or phone number needed. There is no password recovery, so remember your password.</div>
+</div></div>
 
 <div class="ov" id="pov"><div class="sheet"><div class="sh"><strong style="font-size:18px">Profile</strong><button id="pclose" type="button" aria-label="Close">✕</button></div><div id="pbody"></div></div></div>
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,updateProfile} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {getFirestore,collection,addDoc,doc,updateDoc,deleteDoc,query,where,orderBy,limit,onSnapshot,arrayUnion,arrayRemove,setDoc} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 // 1) PASTE YOUR FIREBASE WEB APP CONFIG HERE (Firebase console > Project settings > Your apps)
@@ -161,7 +172,29 @@ const drawPrev=()=>{const pv=$("prev");pv.textContent="";pv.style.display=imgs.l
 function compress(f,cb,er){const r=new FileReader();r.onerror=er;r.onload=()=>{const im=new Image();im.onload=()=>{const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext("2d").drawImage(im,0,0,c.width,c.height);let q=.7,d=c.toDataURL("image/jpeg",q);while(d.length>160000&&q>.3){q-=.1;d=c.toDataURL("image/jpeg",q)}d.length>200000?er():cb(d)};im.onerror=er;im.src=r.result};r.readAsDataURL(f)}
 $("file").onchange=function(){$("err").textContent="";[...this.files].slice(0,4-imgs.length).forEach(f=>compress(f,d=>{if(imgs.length<4){imgs.push(d);drawPrev()}},()=>{$("err").textContent="Couldn’t use one of the photos."}));this.value=""};
 
-async function signIn(){try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){$("err").textContent="Sign-in failed. Allow pop-ups and try again."}}
+function signIn(){openAuth("login")}
+let amode="login";
+const aErr=t=>{$("aerr").textContent=t};
+function setAmode(m){amode=m;$("atitle").textContent=m==="login"?"Log in":"Create account";$("ago").textContent=m==="login"?"Log in":"Create account";$("aswap").textContent=m==="login"?"New here? Create an account":"Have an account? Log in";$("ap").autocomplete=m==="login"?"current-password":"new-password";aErr("")}
+function openAuth(m){setAmode(m||"login");$("aov").classList.add("on")}
+const closeAuth=()=>$("aov").classList.remove("on");
+$("aclose").onclick=closeAuth;$("aov").onclick=e=>{if(e.target===$("aov"))closeAuth()};
+$("aswap").onclick=()=>setAmode(amode==="login"?"signup":"login");
+$("ap").onkeydown=e=>{if(e.key==="Enter")$("ago").click()};
+const mail=u=>u.toLowerCase()+"@cityhappening.local";
+$("ago").onclick=async()=>{
+  const u=$("au").value.trim(),pw=$("ap").value;aErr("");
+  if(!/^[A-Za-z0-9_]{3,20}$/.test(u)){aErr("Username: 3–20 letters, numbers or underscore.");return}
+  if(pw.length<6){aErr("Password must be at least 6 characters.");return}
+  $("ago").disabled=true;
+  try{
+    if(amode==="signup"){const c=await createUserWithEmailAndPassword(auth,mail(u),pw);await updateProfile(c.user,{displayName:u});user=auth.currentUser;setAuth();render()}
+    else await signInWithEmailAndPassword(auth,mail(u),pw);
+    $("ap").value="";closeAuth();
+  }catch(e){const c=(e&&e.code)||"";aErr(c.includes("email-already-in-use")?"That username is taken. Try another.":/invalid-credential|wrong-password|user-not-found/.test(c)?"Wrong username or password.":c.includes("operation-not-allowed")?"Username sign-in isn’t enabled yet in Firebase (Email/Password).":c.includes("too-many")?"Too many tries. Wait a bit and try again.":"Something went wrong. Try again.")}
+  $("ago").disabled=false;
+};
+$("ag").onclick=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider());closeAuth()}catch(e){aErr("Google sign-in failed. Allow pop-ups and try again.")}};
 $("sign").onclick=()=>user?signOut(auth):signIn();
 function setAuth(){$("sign").textContent=user?"Sign out":"Sign in";$("post").textContent=user?"Post":"Sign in to post"}
 
