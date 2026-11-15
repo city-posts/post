@@ -158,6 +158,7 @@ $("ov").onclick=e=>{if(e.target===$("ov"))closeSheet()};
 $("pgps").onclick=()=>gps($("pMsg"),n=>{$("pcity").value=n});
 $("pick").onclick=()=>$("file").click();
 const drawPrev=()=>{const pv=$("prev");pv.textContent="";pv.style.display=imgs.length?"grid":"none";pv.className="imgs n"+Math.max(1,imgs.length);imgs.forEach((d,i)=>{const im=document.createElement("img");im.src=d;im.alt="Selected photo";im.title="Tap to remove";im.onclick=()=>{imgs.splice(i,1);drawPrev()};pv.append(im)})};
+function compress(f,cb,er){const r=new FileReader();r.onerror=er;r.onload=()=>{const im=new Image();im.onload=()=>{const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext("2d").drawImage(im,0,0,c.width,c.height);let q=.7,d=c.toDataURL("image/jpeg",q);while(d.length>160000&&q>.3){q-=.1;d=c.toDataURL("image/jpeg",q)}d.length>200000?er():cb(d)};im.onerror=er;im.src=r.result};r.readAsDataURL(f)}
 $("file").onchange=function(){$("err").textContent="";[...this.files].slice(0,4-imgs.length).forEach(f=>compress(f,d=>{if(imgs.length<4){imgs.push(d);drawPrev()}},()=>{$("err").textContent="Couldn’t use one of the photos."}));this.value=""};
 
 async function signIn(){try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){$("err").textContent="Sign-in failed. Allow pop-ups and try again."}}
